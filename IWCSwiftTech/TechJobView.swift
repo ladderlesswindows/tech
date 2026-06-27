@@ -68,17 +68,18 @@ struct TechJobView: View {
     // MARK: - Check-In Logic
 
     private func requestCheckIn() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+            checkInState = .requested
+        }
         Task {
-            guard let id = try? await APIClient.requestCheckIn(
+            if let id = try? await APIClient.requestCheckIn(
                 password: password,
                 bookingId: booking.id,
                 techName: auth.currentEmployee?.name ?? "Tech"
-            ) else { return }
-            await MainActor.run {
-                checkInId = id
-                checkInState = .requested
+            ) {
+                await MainActor.run { checkInId = id }
+                startPolling()
             }
-            startPolling()
         }
     }
 
