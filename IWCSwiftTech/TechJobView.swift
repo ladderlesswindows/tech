@@ -61,6 +61,7 @@ struct TechJobView: View {
         .ignoresSafeArea()
         .fullScreenCover(isPresented: $showWalls) {
             WallsView(booking: booking)
+                .environmentObject(timerMgr)
         }
         .onDisappear { checkInPollingTask?.cancel() }
     }

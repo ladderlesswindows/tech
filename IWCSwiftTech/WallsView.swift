@@ -24,6 +24,7 @@ struct WallEntry: Identifiable {
 struct WallsView: View {
     let booking: Booking
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var timerMgr: TimerManager
 
     @State private var walls: [WallEntry] = []
     @State private var showAddSheet = false
@@ -62,31 +63,27 @@ struct WallsView: View {
             }
         }
         .ignoresSafeArea()
-        .sheet(isPresented: $showAddSheet) {
+        .sheet(isPresented: $showAddSheet, onDismiss: {
+            // Only present after the sheet is fully gone
+            if pendingWall != nil { showWindowPhotos = true }
+        }) {
             AddWallSheet { entry in
                 pendingWall = entry
-                showAddSheet = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    showWindowPhotos = true
-                }
+                // AddWallSheet calls its own dismiss() — onDismiss fires after animation
             }
         }
         .fullScreenCover(isPresented: $showWindowPhotos) {
             if let wall = pendingWall {
                 WindowPhotosView(
                     wall: wall,
-                    isLastWall: false,
                     onComplete: { completed, isLast in
                         walls.append(completed)
                         pendingWall = nil
                         showWindowPhotos = false
-                        if isLast {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                showSummary = true
-                            }
-                        }
+                        if isLast { showSummary = true }
                     }
                 )
+                .environmentObject(timerMgr)
             }
         }
         .fullScreenCover(isPresented: $showSummary) {
@@ -336,6 +333,7 @@ struct AddWallSheet: View {
                         Button {
                             guard !areaName.isEmpty else { return }
                             onAdd(WallEntry(area: areaName, notes: notes, overviewImageData: imageData))
+                            dismiss()
                         } label: {
                             HStack(spacing: 8) {
                                 Text(areaName.isEmpty ? "Name this area first" : "Next — Photograph Windows")
@@ -412,13 +410,14 @@ struct AddWallSheet: View {
 
 struct WindowPhotosView: View {
     var wall: WallEntry
-    let isLastWall: Bool
     let onComplete: (WallEntry, _ isLast: Bool) -> Void
 
+    @EnvironmentObject private var timerMgr: TimerManager
     @State private var photos: [WindowPhoto] = []
     @State private var showCamera = false
-    @State private var showLibrary = false
     @State private var selectedItem: PhotosPickerItem? = nil
+
+    private var windowWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "window" }) }
 
     var body: some View {
         ZStack {
@@ -439,6 +438,9 @@ struct WindowPhotosView: View {
                             .foregroundColor(Color.white.opacity(0.35))
                     }
                 }
+
+                // Window timer strip
+                windowTimerStrip
                 .padding(.top, 60).padding(.bottom, 24)
 
                 if photos.isEmpty {
@@ -467,7 +469,6 @@ struct WindowPhotosView: View {
                 }
             }
         }
-        .sheet(isPresented: $showLibrary) { libraryPicker }
         .onChange(of: selectedItem) { _, item in
             Task {
                 if let data = try? await item?.loadTransferable(type: Data.self) {
@@ -476,6 +477,39 @@ struct WindowPhotosView: View {
                 selectedItem = nil
             }
         }
+    }
+
+    private var windowTimerStrip: some View {
+        let watch = windowWatch
+        let running = watch?.isRunning ?? false
+        let elapsed = watch?.currentElapsed(at: timerMgr.tick) ?? 0
+
+        return Button { timerMgr.toggle("window") } label: {
+            HStack(spacing: 10) {
+                Text("🪟").font(.system(size: 15))
+                Text("Window Timer")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(running ? Color(hex: "7ED8EA") : Color.white.opacity(0.4))
+                Spacer()
+                Text(watch?.formatTime(elapsed) ?? "00:00")
+                    .font(.system(size: 15, weight: .light, design: .monospaced))
+                    .foregroundColor(running ? .white : Color.white.opacity(0.25))
+                    .animation(.none, value: elapsed)
+                Image(systemName: running ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(running ? Color(hex: "34D399") : Color(hex: "3AAAC4").opacity(0.6))
+            }
+            .padding(.horizontal, 18).padding(.vertical, 12)
+            .background(running ? Color(hex: "0A2A1A").opacity(0.85) : Color(hex: "0A1E2C").opacity(0.75))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(
+                running ? Color(hex: "34D399").opacity(0.35) : Color(hex: "3AAAC4").opacity(0.15),
+                lineWidth: running ? 1.5 : 1
+            ))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
     }
 
     private var firstPhotoPrompt: some View {
@@ -629,12 +663,6 @@ struct WindowPhotosView: View {
         }
     }
 
-    @ViewBuilder
-    private var libraryPicker: some View {
-        PhotosPicker(selection: $selectedItem, matching: .images) {
-            EmptyView()
-        }
-    }
 }
 
 // MARK: - Summary View
