@@ -21,6 +21,34 @@ struct DashboardView: View {
                     .padding(.top, 60)
                     .padding(.bottom, 24)
 
+                // Windows cleaned tally — appears once first job is closed
+                if timerMgr.windowsCleanedToday > 0 {
+                    HStack(spacing: 10) {
+                        Text("🪟")
+                            .font(.system(size: 20))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(timerMgr.windowsCleanedToday) windows cleaned today")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("running total across closed jobs")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color.white.opacity(0.35))
+                        }
+                        Spacer()
+                        Text("\(timerMgr.windowsCleanedToday)")
+                            .font(.system(size: 32, weight: .light, design: .monospaced))
+                            .foregroundColor(Color(hex: "34D399"))
+                    }
+                    .padding(.horizontal, 18).padding(.vertical, 14)
+                    .background(Color(hex: "0A1E12").opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "34D399").opacity(0.25), lineWidth: 1))
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(response: 0.5, dampingFraction: 0.75), value: timerMgr.windowsCleanedToday)
+                }
+
                 // Shift control card
                 shiftCard
                     .padding(.horizontal, 20)

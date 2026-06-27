@@ -90,6 +90,7 @@ struct TechJobView: View {
             Button("Close Job + Stop Timers", role: .destructive) {
                 if onsiteWatch?.isRunning == true { timerMgr.toggle("onsite") }
                 if windowWatch?.isRunning == true { timerMgr.toggle("window") }
+                timerMgr.windowsCleanedToday += documentedWindowCount
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                     jobClosed = true
                 }
@@ -276,8 +277,22 @@ struct TechJobView: View {
                         .disabled(jobClosed)
 
                         if jobClosed {
-                            navigateButton
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            HStack(spacing: 12) {
+                                navigateButton
+                                Button { dismiss() } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "house.fill").font(.system(size: 15))
+                                        Text("Back Home").font(.system(size: 15, weight: .bold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Color(hex: "0A1A28").opacity(0.9))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.12), lineWidth: 1))
+                                }
+                            }
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     } // end VStack
                     .padding(.horizontal, 20)

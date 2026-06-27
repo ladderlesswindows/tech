@@ -44,6 +44,7 @@ class TimerManager: ObservableObject {
     ]
 
     @Published var tick = Date()
+    @Published var windowsCleanedToday: Int = 0
     private var timer: AnyCancellable?
 
     init() {
