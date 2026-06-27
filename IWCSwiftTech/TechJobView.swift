@@ -210,9 +210,31 @@ struct TechJobView: View {
                     .padding(.bottom, 16)
                     .transition(.move(edge: .top).combined(with: .opacity))
 
-                    // Action buttons row
-                    VStack(spacing: 10) {
-                        // Add last minute window
+                    // Pre-documentation: Begin Wall Documentation
+                    if documentedWalls.isEmpty {
+                        Button { showWalls = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "square.grid.2x2.fill").font(.system(size: 17))
+                                Text("Begin Wall Documentation").font(.system(size: 16, weight: .bold))
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 18).padding(.vertical, 18)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hex: "1278A0"), Color(hex: "0D5C85")],
+                                    startPoint: .leading, endPoint: .trailing
+                                )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 32)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    } else {
+                        // Post-documentation: Add Last Minute + Close Job
+                        VStack(spacing: 10) {
                         Button { showQuickWindow = true } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "plus.viewfinder").font(.system(size: 17))
@@ -227,7 +249,6 @@ struct TechJobView: View {
                             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "3AAAC4").opacity(0.3), lineWidth: 1))
                         }
 
-                        // Close job
                         Button { showCloseConfirm = true } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "checkmark.circle.fill").font(.system(size: 17))
@@ -254,17 +275,16 @@ struct TechJobView: View {
                         }
                         .disabled(jobClosed)
 
-                        // Navigate — only shows after job is closed
                         if jobClosed {
                             navigateButton
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
-                    }
+                    } // end VStack
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .animation(.spring(response: 0.45, dampingFraction: 0.75), value: jobClosed)
-                }
+                    } // end else (post-documentation)
 
                 Spacer(minLength: 60)
             }
