@@ -3,6 +3,7 @@ import SwiftUI
 struct TechJobView: View {
     let booking: Booking
     @ObservedObject var timerMgr: TimerManager
+    @EnvironmentObject private var auth: AuthManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var safetyStage: SafetyStage = .step1
@@ -11,11 +12,22 @@ struct TechJobView: View {
     @State private var step2Checks: Set<String> = []
     @State private var showSafety = true
 
+    // Check-in state
+    enum CheckInState { case idle, requested, confirmed, exception }
+    @State private var checkInState: CheckInState = .idle
+    @State private var checkInId: String? = nil
+    @State private var checkInPollingTask: Task<Void, Never>? = nil
+
+    // Walls path
+    @State private var showWalls = false
+
     enum SafetyStage { case step1, step2 }
 
     private var driveWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "drive" }) }
     private var onsiteWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "onsite" }) }
     private var windowWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "window" }) }
+    private var onsiteRunning: Bool { onsiteWatch?.isRunning ?? false }
+    private var password: String { auth.apiPassword }
 
     var body: some View {
         ZStack {
@@ -47,6 +59,48 @@ struct TechJobView: View {
             }
         }
         .ignoresSafeArea()
+        .fullScreenCover(isPresented: $showWalls) {
+            WallsView(booking: booking)
+        }
+        .onDisappear { checkInPollingTask?.cancel() }
+    }
+
+    // MARK: - Check-In Logic
+
+    private func requestCheckIn() {
+        Task {
+            guard let id = try? await APIClient.requestCheckIn(
+                password: password,
+                bookingId: booking.id,
+                techName: auth.currentEmployee?.name ?? "Tech"
+            ) else { return }
+            await MainActor.run {
+                checkInId = id
+                checkInState = .requested
+            }
+            startPolling()
+        }
+    }
+
+    private func startPolling() {
+        checkInPollingTask?.cancel()
+        checkInPollingTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard !Task.isCancelled else { return }
+                if let status = try? await APIClient.pollCheckIn(password: password, bookingId: booking.id) {
+                    if status.confirmed != nil {
+                        await MainActor.run {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                                checkInState = .confirmed
+                            }
+                            checkInPollingTask?.cancel()
+                        }
+                        return
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Job Detail
@@ -102,15 +156,55 @@ struct TechJobView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 12)
 
-                timerSection(
-                    watch: windowWatch,
-                    id: "window",
-                    label: "Window Timer",
-                    emoji: "🪟",
-                    subtitle: "Start when cleaning begins"
-                )
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                // Check-in block — appears once on-site timer is running
+                if onsiteRunning {
+                    checkInBlock
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 12)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: onsiteRunning)
+                }
+
+                // Window timer only unlocked after check-in
+                if checkInState == .confirmed || checkInState == .exception {
+                    timerSection(
+                        watch: windowWatch,
+                        id: "window",
+                        label: "Window Timer",
+                        emoji: "🪟",
+                        subtitle: "Start when cleaning begins"
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+
+                    Button {
+                        showWalls = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "square.grid.2x2.fill")
+                                .font(.system(size: 17))
+                            Text("Begin Wall Documentation")
+                                .font(.system(size: 16, weight: .bold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 18)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(hex: "1278A0"), Color(hex: "0D5C85")],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
 
                 Spacer(minLength: 60)
             }
@@ -267,6 +361,129 @@ struct TechJobView: View {
                 lineWidth: running ? 1.5 : 1
             )
         )
+    }
+
+    // MARK: - Check-In Block
+
+    @ViewBuilder
+    private var checkInBlock: some View {
+        switch checkInState {
+        case .idle:
+            Button { requestCheckIn() } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle().fill(Color(hex: "3AAAC4").opacity(0.15)).frame(width: 42, height: 42)
+                        Image(systemName: "ipad.and.iphone")
+                            .font(.system(size: 18))
+                            .foregroundColor(Color(hex: "3AAAC4"))
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Check In")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                        Text("Notify the iPad app — customer confirms your arrival")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.white.opacity(0.4))
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(hex: "3AAAC4").opacity(0.5))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color(hex: "0A2A3C").opacity(0.85))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "3AAAC4").opacity(0.3), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+        case .requested:
+            VStack(spacing: 14) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle().fill(Color(hex: "F59E0B").opacity(0.12)).frame(width: 42, height: 42)
+                        ProgressView()
+                            .tint(Color(hex: "F59E0B"))
+                            .scaleEffect(1.1)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Waiting for check-in confirmation")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                        Text("Customer needs to tap Confirm on the iPad")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.white.opacity(0.4))
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color(hex: "1A1200").opacity(0.85))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "F59E0B").opacity(0.35), lineWidth: 1))
+
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        checkInState = .exception
+                        checkInPollingTask?.cancel()
+                    }
+                } label: {
+                    Text("Proceed anyway (exception)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color.white.opacity(0.3))
+                        .underline()
+                }
+            }
+
+        case .confirmed:
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 42, height: 42)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(Color(hex: "34D399"))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Checked In ✓")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(Color(hex: "34D399"))
+                    Text("Customer confirmed your arrival")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.white.opacity(0.4))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(hex: "0A1E12").opacity(0.85))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "34D399").opacity(0.3), lineWidth: 1))
+
+        case .exception:
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(Color(hex: "F97316").opacity(0.12)).frame(width: 42, height: 42)
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(Color(hex: "F97316"))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Exception — proceeding without confirmation")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(hex: "F97316"))
+                    Text("Check-in was not confirmed on iPad")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.white.opacity(0.35))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(hex: "1A0A00").opacity(0.85))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "F97316").opacity(0.25), lineWidth: 1))
+        }
     }
 
     // MARK: - Safety Badge
