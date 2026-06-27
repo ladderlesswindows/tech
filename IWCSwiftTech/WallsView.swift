@@ -23,6 +23,7 @@ struct WallEntry: Identifiable {
 
 struct WallsView: View {
     let booking: Booking
+    var onComplete: (([WallEntry]) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var timerMgr: TimerManager
 
@@ -88,6 +89,7 @@ struct WallsView: View {
         }
         .fullScreenCover(isPresented: $showSummary) {
             WallsSummaryView(booking: booking, walls: walls) {
+                onComplete?(walls)
                 dismiss()
             }
         }

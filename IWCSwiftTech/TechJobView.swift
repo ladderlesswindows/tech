@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct TechJobView: View {
     let booking: Booking
@@ -18,8 +19,16 @@ struct TechJobView: View {
     @State private var checkInId: String? = nil
     @State private var checkInPollingTask: Task<Void, Never>? = nil
 
-    // Walls path
+    // Walls + job state
     @State private var showWalls = false
+    @State private var showQuickWindow = false
+    @State private var documentedWalls: [WallEntry] = []
+    @State private var jobClosed = false
+    @State private var showCloseConfirm = false
+
+    var documentedWindowCount: Int { documentedWalls.reduce(0) { $0 + $1.windowPhotos.count } }
+    var bookedWindowCount: Int { booking.window_count ?? 0 }
+    var windowDelta: Int { documentedWindowCount - bookedWindowCount }
 
     enum SafetyStage { case step1, step2 }
 
@@ -60,8 +69,34 @@ struct TechJobView: View {
         }
         .ignoresSafeArea()
         .fullScreenCover(isPresented: $showWalls) {
-            WallsView(booking: booking)
-                .environmentObject(timerMgr)
+            WallsView(booking: booking, onComplete: { walls in
+                documentedWalls.append(contentsOf: walls)
+            })
+            .environmentObject(timerMgr)
+        }
+        .sheet(isPresented: $showQuickWindow) {
+            QuickWindowSheet { photo in
+                var quick = WallEntry(area: "Last Minute", notes: "Quick add")
+                quick.windowPhotos = [photo]
+                documentedWalls.append(quick)
+                showQuickWindow = false
+            }
+        }
+        .confirmationDialog(
+            "Close this job?",
+            isPresented: $showCloseConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Close Job + Stop Timers", role: .destructive) {
+                if onsiteWatch?.isRunning == true { timerMgr.toggle("onsite") }
+                if windowWatch?.isRunning == true { timerMgr.toggle("window") }
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                    jobClosed = true
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will stop the On-Site and Window timers and mark the job complete.")
         }
         .onDisappear { checkInPollingTask?.cancel() }
     }
@@ -132,11 +167,6 @@ struct TechJobView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
 
-                // Navigate button
-                navigateButton
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
-
                 // Timer controls
                 timerSection(
                     watch: driveWatch,
@@ -180,32 +210,60 @@ struct TechJobView: View {
                     .padding(.bottom, 16)
                     .transition(.move(edge: .top).combined(with: .opacity))
 
-                    Button {
-                        showWalls = true
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "square.grid.2x2.fill")
-                                .font(.system(size: 17))
-                            Text("Begin Wall Documentation")
-                                .font(.system(size: 16, weight: .bold))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
+                    // Action buttons row
+                    VStack(spacing: 10) {
+                        // Add last minute window
+                        Button { showQuickWindow = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "plus.viewfinder").font(.system(size: 17))
+                                Text("Add Last Minute Window").font(.system(size: 15, weight: .bold))
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.system(size: 13))
+                            }
+                            .foregroundColor(Color(hex: "7ED8EA"))
+                            .padding(.horizontal, 18).padding(.vertical, 16)
+                            .background(Color(hex: "0A2A3C").opacity(0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "3AAAC4").opacity(0.3), lineWidth: 1))
                         }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 18)
-                        .background(
-                            LinearGradient(
-                                colors: [Color(hex: "1278A0"), Color(hex: "0D5C85")],
-                                startPoint: .leading, endPoint: .trailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                        // Close job
+                        Button { showCloseConfirm = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.circle.fill").font(.system(size: 17))
+                                Text("Close Job + Stop Gig Timer").font(.system(size: 15, weight: .bold))
+                                Spacer()
+                            }
+                            .foregroundColor(jobClosed ? Color(hex: "34D399") : .white)
+                            .padding(.horizontal, 18).padding(.vertical, 16)
+                            .background {
+                                if jobClosed {
+                                    Color(hex: "0A1E12").opacity(0.85)
+                                } else {
+                                    LinearGradient(
+                                        colors: [Color(hex: "1C3A50"), Color(hex: "0F2A3A")],
+                                        startPoint: .leading, endPoint: .trailing
+                                    )
+                                }
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(
+                                jobClosed ? Color(hex: "34D399").opacity(0.35) : Color.white.opacity(0.1),
+                                lineWidth: 1
+                            ))
+                        }
+                        .disabled(jobClosed)
+
+                        // Navigate — only shows after job is closed
+                        if jobClosed {
+                            navigateButton
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
                     .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(response: 0.45, dampingFraction: 0.75), value: jobClosed)
                 }
 
                 Spacer(minLength: 60)
@@ -243,23 +301,69 @@ struct TechJobView: View {
 
             Divider().background(Color(hex: "3AAAC4").opacity(0.15))
 
-            HStack(spacing: 20) {
-                if let w = booking.window_count {
-                    statBubble(value: "\(w)", label: "WINDOWS", color: "3AAAC4")
+            // Window count row
+            HStack(spacing: 0) {
+                // Booked
+                windowStatCell(
+                    value: "\(bookedWindowCount)",
+                    label: "BOOKED",
+                    color: "3AAAC4"
+                )
+
+                // Divider
+                Rectangle()
+                    .fill(Color(hex: "3AAAC4").opacity(0.15))
+                    .frame(width: 1, height: 36)
+
+                // Documented
+                windowStatCell(
+                    value: documentedWindowCount > 0 ? "\(documentedWindowCount)" : "—",
+                    label: "DOCUMENTED",
+                    color: documentedWindowCount > 0 ? "34D399" : "3AAAC4"
+                )
+
+                // Difference — only once we have documented windows
+                if documentedWindowCount > 0 {
+                    Rectangle()
+                        .fill(Color(hex: "3AAAC4").opacity(0.15))
+                        .frame(width: 1, height: 36)
+
+                    let delta = windowDelta
+                    windowStatCell(
+                        value: delta == 0 ? "=" : (delta > 0 ? "+\(delta)" : "\(delta)"),
+                        label: "DIFFERENCE",
+                        color: delta == 0 ? "7ED8EA" : (delta > 0 ? "F59E0B" : "F97316")
+                    )
                 }
-                if let p = booking.total_price, p > 0 {
-                    statBubble(value: "$\(Int(p))", label: "TOTAL", color: "34D399")
-                }
+
                 Spacer()
+
+                // Job status pill
+                Text(jobClosed ? "CLOSED" : "ACTIVE")
+                    .font(.system(size: 9, weight: .black))
+                    .tracking(2)
+                    .foregroundColor(jobClosed ? Color(hex: "34D399") : Color(hex: "F59E0B"))
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(
+                        jobClosed
+                        ? Color(hex: "34D399").opacity(0.12)
+                        : Color(hex: "F59E0B").opacity(0.12)
+                    )
+                    .clipShape(Capsule())
             }
         }
         .padding(18)
         .background(Color(hex: "0A2030").opacity(0.85))
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color(hex: "3AAAC4").opacity(0.2), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(
+            jobClosed ? Color(hex: "34D399").opacity(0.25) : Color(hex: "3AAAC4").opacity(0.2),
+            lineWidth: 1
+        ))
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: documentedWindowCount)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: jobClosed)
     }
 
-    private func statBubble(value: String, label: String, color: String) -> some View {
+    private func windowStatCell(value: String, label: String, color: String) -> some View {
         VStack(spacing: 3) {
             Text(value)
                 .font(.system(size: 20, weight: .bold))
@@ -269,6 +373,7 @@ struct TechJobView: View {
                 .tracking(1.5)
                 .foregroundColor(Color.white.opacity(0.3))
         }
+        .frame(minWidth: 70)
     }
 
     // MARK: - Navigate
@@ -504,6 +609,127 @@ struct TechJobView: View {
         .background(Color(hex: "0F3A25").opacity(0.8))
         .clipShape(Capsule())
         .overlay(Capsule().stroke(Color(hex: "34D399").opacity(0.3), lineWidth: 1))
+    }
+}
+
+// MARK: - Quick Window Sheet
+
+struct QuickWindowSheet: View {
+    let onSave: (WindowPhoto) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var showCamera = false
+    @State private var showLibrary = false
+    @State private var capturedPhoto: WindowPhoto? = nil
+    @State private var selectedItem: PhotosPickerItem? = nil
+
+    var body: some View {
+        ZStack {
+            Color(hex: "04101C").ignoresSafeArea()
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 6) {
+                    Text("Last Minute Window")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Document and clean one complimentary window")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.white.opacity(0.4))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 32)
+
+                // Photo preview or picker buttons
+                if let photo = capturedPhoto, let img = photo.image {
+                    ZStack(alignment: .topTrailing) {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .padding(.horizontal, 24)
+
+                        Button { capturedPhoto = nil } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.5), radius: 4)
+                        }
+                        .offset(x: -28, y: 8)
+                    }
+                } else {
+                    HStack(spacing: 14) {
+                        Button { showCamera = true } label: {
+                            VStack(spacing: 8) {
+                                Image(systemName: "camera.fill").font(.system(size: 24))
+                                Text("Camera").font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundColor(Color(hex: "7ED8EA"))
+                            .frame(maxWidth: .infinity).padding(.vertical, 24)
+                            .background(Color(hex: "0A2A3C").opacity(0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "3AAAC4").opacity(0.3), lineWidth: 1))
+                        }
+                        PhotosPicker(selection: $selectedItem, matching: .images) {
+                            VStack(spacing: 8) {
+                                Image(systemName: "photo.on.rectangle").font(.system(size: 24))
+                                Text("Library").font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundColor(Color(hex: "7ED8EA"))
+                            .frame(maxWidth: .infinity).padding(.vertical, 24)
+                            .background(Color(hex: "0A2A3C").opacity(0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "3AAAC4").opacity(0.3), lineWidth: 1))
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                }
+
+                Spacer()
+
+                // Save button
+                Button {
+                    if let photo = capturedPhoto {
+                        onSave(photo)
+                    } else {
+                        // Save without photo (documented but no image)
+                        if let placeholder = UIImage(systemName: "window.casement")?.withTintColor(.white, renderingMode: .alwaysOriginal),
+                           let data = placeholder.pngData() {
+                            onSave(WindowPhoto(imageData: data))
+                        }
+                    }
+                } label: {
+                    Text(capturedPhoto != nil ? "Save Window" : "Document Without Photo")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(hex: "1278A0"), Color(hex: "0D5C85")],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
+            }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPickerView { img in
+                if let data = img.jpegData(compressionQuality: 0.82) {
+                    capturedPhoto = WindowPhoto(imageData: data)
+                }
+            }
+        }
+        .onChange(of: selectedItem) { _, item in
+            Task {
+                if let data = try? await item?.loadTransferable(type: Data.self) {
+                    capturedPhoto = WindowPhoto(imageData: data)
+                }
+                selectedItem = nil
+            }
+        }
     }
 }
 
