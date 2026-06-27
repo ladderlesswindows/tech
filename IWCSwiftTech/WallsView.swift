@@ -381,14 +381,16 @@ struct AddWallSheet: View {
                                 .foregroundColor(areaName.isEmpty ? Color.white.opacity(0.3) : Color(hex: "04101C"))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 18)
-                                .background(
-                                    areaName.isEmpty
-                                    ? Color(hex: "0A2030").opacity(0.7)
-                                    : LinearGradient(
-                                        colors: [Color(hex: "7ED8EA"), Color(hex: "3AAAC4")],
-                                        startPoint: .leading, endPoint: .trailing
-                                    )
-                                )
+                                .background {
+                                    if areaName.isEmpty {
+                                        Color(hex: "0A2030").opacity(0.7)
+                                    } else {
+                                        LinearGradient(
+                                            colors: [Color(hex: "7ED8EA"), Color(hex: "3AAAC4")],
+                                            startPoint: .leading, endPoint: .trailing
+                                        )
+                                    }
+                                }
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                         .disabled(areaName.isEmpty)
