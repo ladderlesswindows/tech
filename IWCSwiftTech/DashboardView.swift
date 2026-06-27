@@ -8,6 +8,7 @@ struct DashboardView: View {
 
     @State private var todayJobs: [Booking] = []
     @State private var isLoadingJobs = false
+    @State private var activeJob: Booking? = nil
 
     private var shiftState: StopwatchState? { timerMgr.watches.first(where: { $0.id == "shift" }) }
     private var shiftRunning: Bool { shiftState?.isRunning ?? false }
@@ -47,7 +48,9 @@ struct DashboardView: View {
 
                     VStack(spacing: 8) {
                         ForEach(todayJobs) { job in
-                            JobRowCard(booking: job)
+                            JobRowCard(booking: job, shiftRunning: shiftRunning) {
+                                activeJob = job
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -65,6 +68,9 @@ struct DashboardView: View {
             }
         }
         .task { await loadJobs() }
+        .fullScreenCover(item: $activeJob) { job in
+            TechJobView(booking: job, timerMgr: timerMgr)
+        }
     }
 
     // MARK: - Header
@@ -278,47 +284,66 @@ struct DashboardView: View {
 
 struct JobRowCard: View {
     let booking: Booking
+    var shiftRunning: Bool = false
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(spacing: 3) {
-                Circle()
-                    .fill(Color(hex: "3AAAC4").opacity(0.25))
-                    .frame(width: 38, height: 38)
-                    .overlay(
-                        Text("🪟")
-                            .font(.system(size: 18))
+        Button {
+            if shiftRunning { onTap?() }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "3AAAC4").opacity(shiftRunning ? 0.25 : 0.1))
+                        .frame(width: 38, height: 38)
+                    Text(shiftRunning ? "🪟" : "🔒")
+                        .font(.system(size: 18))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(booking.displayName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(shiftRunning ? .white : Color.white.opacity(0.4))
+                    if let addr = booking.address {
+                        Text(addr)
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.white.opacity(0.35))
+                            .lineLimit(1)
+                    }
+                    if !shiftRunning {
+                        Text("Start shift to begin")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(Color(hex: "3AAAC4").opacity(0.5))
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    if let t = booking.service_time {
+                        Text(t)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(shiftRunning ? Color(hex: "7ED8EA") : Color.white.opacity(0.25))
+                    }
+                    if let w = booking.window_count {
+                        Text("\(w)w")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color.white.opacity(0.3))
+                    }
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(shiftRunning ? Color(hex: "3AAAC4").opacity(0.5) : Color.white.opacity(0.1))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Color(hex: shiftRunning ? "0A2A3C" : "071520").opacity(0.7))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(
+                        shiftRunning ? Color(hex: "3AAAC4").opacity(0.3) : Color.white.opacity(0.06),
+                        lineWidth: 1
                     )
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(booking.displayName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                if let addr = booking.address {
-                    Text(addr)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.white.opacity(0.4))
-                        .lineLimit(1)
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 3) {
-                if let t = booking.service_time {
-                    Text(t)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Color(hex: "7ED8EA"))
-                }
-                if let w = booking.window_count {
-                    Text("\(w)w")
-                        .font(.system(size: 10))
-                        .foregroundColor(Color.white.opacity(0.3))
-                }
-            }
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(hex: "0A2A3C").opacity(0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "3AAAC4").opacity(0.15), lineWidth: 1))
+        .buttonStyle(.plain)
     }
 }
