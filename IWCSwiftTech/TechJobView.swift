@@ -285,6 +285,7 @@ struct TechJobView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .animation(.spring(response: 0.45, dampingFraction: 0.75), value: jobClosed)
                     } // end else (post-documentation)
+                } // end if checkInState
 
                 Spacer(minLength: 60)
             }
