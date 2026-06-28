@@ -91,6 +91,8 @@ struct WorkerProfileView: View {
                             if let data = UserDefaults.standard.data(forKey: avatarKey) {
                                 avatarImage = UIImage(data: data)
                             }
+                            let pKey = "payment_\(auth.currentEmployee?.id ?? "unknown")"
+                            paymentHandle = UserDefaults.standard.string(forKey: pKey) ?? ""
                         }
                         Text(auth.currentEmployee?.name ?? "Technician")
                             .font(.system(size: 22, weight: .bold))
@@ -210,10 +212,6 @@ struct WorkerProfileView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "34D399").opacity(0.15), lineWidth: 1))
                     .padding(.horizontal, 20)
-                    .onAppear {
-                        let key = "payment_\(auth.currentEmployee?.id ?? "unknown")"
-                        paymentHandle = UserDefaults.standard.string(forKey: key) ?? ""
-                    }
 
                     // Active timers
                     let running = timerMgr.watches.filter { $0.isRunning }
