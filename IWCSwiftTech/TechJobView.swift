@@ -12,6 +12,7 @@ struct TechJobView: View {
     @State private var step1Selections: Set<String> = []
     @State private var step2Checks: Set<String> = []
     @State private var showSafety = true
+    @State private var clientIsHome = false
 
     // Check-in state
     enum CheckInState { case idle, requested, confirmed, exception }
@@ -56,7 +57,9 @@ struct TechJobView: View {
                     step1Selections: $step1Selections,
                     step2Checks: $step2Checks,
                     booking: booking,
-                    onClientCheck: { _ in
+                    clientIsHome: clientIsHome,
+                    onClientCheck: { isHome in
+                        clientIsHome = isHome
                         // Drive timer pauses, on-site starts
                         if timerMgr.watches.first(where: { $0.id == "drive" })?.isRunning == true {
                             timerMgr.toggle("drive")
@@ -788,6 +791,7 @@ struct SafetyOverlay: View {
     @Binding var step1Selections: Set<String>
     @Binding var step2Checks: Set<String>
     let booking: Booking
+    var clientIsHome: Bool = false
     let onClientCheck: (Bool) -> Void
     let onClear: () -> Void
     let onDismiss: () -> Void
@@ -890,7 +894,7 @@ struct SafetyOverlay: View {
             VStack(spacing: 12) {
                 Button {
                     onClientCheck(true)
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step1 }
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step2 }
                 } label: {
                     HStack(spacing: 16) {
                         ZStack {
@@ -921,7 +925,7 @@ struct SafetyOverlay: View {
 
                 Button {
                     onClientCheck(false)
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step2 }
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step1 }
                 } label: {
                     HStack(spacing: 16) {
                         ZStack {
@@ -968,7 +972,9 @@ struct SafetyOverlay: View {
             VStack(spacing: 10) {
                 ForEach(step1Options, id: \.1) { emoji, label in
                     let selected = step1Selections.contains(label)
+                    let unavailable = label == "Client nearby" && !clientIsHome
                     Button {
+                        guard !unavailable else { return }
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             if selected { step1Selections.remove(label) }
                             else { step1Selections.insert(label) }
@@ -976,19 +982,27 @@ struct SafetyOverlay: View {
                     } label: {
                         HStack(spacing: 14) {
                             Text(emoji).font(.system(size: 22))
-                            Text(label)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(selected ? .white : Color.white.opacity(0.55))
+                                .opacity(unavailable ? 0.25 : 1)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(label)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(unavailable ? Color.white.opacity(0.2) : selected ? .white : Color.white.opacity(0.55))
+                                if unavailable {
+                                    Text("Client not home")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color.white.opacity(0.2))
+                                }
+                            }
                             Spacer()
                             ZStack {
                                 Circle()
-                                    .fill(selected ? Color(hex: "3AAAC4") : Color.clear)
+                                    .fill(unavailable ? Color.clear : selected ? Color(hex: "3AAAC4") : Color.clear)
                                     .frame(width: 24, height: 24)
                                     .overlay(Circle().stroke(
-                                        selected ? Color(hex: "3AAAC4") : Color.white.opacity(0.25),
+                                        unavailable ? Color.white.opacity(0.1) : selected ? Color(hex: "3AAAC4") : Color.white.opacity(0.25),
                                         lineWidth: 1.5
                                     ))
-                                if selected {
+                                if selected && !unavailable {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundColor(.white)
@@ -998,14 +1012,15 @@ struct SafetyOverlay: View {
                         .padding(.horizontal, 18)
                         .padding(.vertical, 16)
                         .background(
-                            selected
-                            ? Color(hex: "0A3D5C").opacity(0.85)
+                            unavailable ? Color(hex: "0A1A28").opacity(0.3)
+                            : selected ? Color(hex: "0A3D5C").opacity(0.85)
                             : Color(hex: "0A1A28").opacity(0.7)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14).stroke(
-                                selected ? Color(hex: "3AAAC4").opacity(0.5) : Color.white.opacity(0.07),
+                                unavailable ? Color.white.opacity(0.04)
+                                : selected ? Color(hex: "3AAAC4").opacity(0.5) : Color.white.opacity(0.07),
                                 lineWidth: 1
                             )
                         )
