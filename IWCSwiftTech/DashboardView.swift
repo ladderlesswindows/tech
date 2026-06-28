@@ -132,7 +132,7 @@ struct DashboardView: View {
                                 .padding(.horizontal, 20).padding(.bottom, 10)
                             VStack(spacing: 8) {
                                 ForEach(todayJobs) { job in
-                                    JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
+                                    JobRowCard(booking: job) { activeJob = job }
                                 }
                             }
                             .padding(.horizontal, 20).padding(.bottom, 16)
@@ -144,7 +144,7 @@ struct DashboardView: View {
                                 .padding(.horizontal, 20).padding(.bottom, 10)
                             VStack(spacing: 8) {
                                 ForEach(futureJobs) { job in
-                                    JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
+                                    JobRowCard(booking: job) { activeJob = job }
                                 }
                             }
                             .padding(.horizontal, 20).padding(.bottom, 24)
@@ -414,32 +414,25 @@ struct JobRowCard: View {
     var onTap: (() -> Void)? = nil
 
     var body: some View {
-        Button {
-            if shiftRunning { onTap?() }
-        } label: {
+        Button { onTap?() } label: {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: "3AAAC4").opacity(shiftRunning ? 0.25 : 0.1))
+                        .fill(Color(hex: "3AAAC4").opacity(0.25))
                         .frame(width: 38, height: 38)
-                    Image(systemName: shiftRunning ? "window.casement" : "house.fill")
+                    Image(systemName: "window.casement")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(shiftRunning ? Color(hex: "7ED8EA") : Color.white.opacity(0.25))
+                        .foregroundColor(Color(hex: "7ED8EA"))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(booking.displayName)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(shiftRunning ? .white : Color.white.opacity(0.4))
+                        .foregroundColor(.white)
                     if let addr = booking.address {
                         Text(addr)
                             .font(.system(size: 11))
                             .foregroundColor(Color.white.opacity(0.35))
                             .lineLimit(1)
-                    }
-                    if !shiftRunning {
-                        Text("Start shift to begin")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(Color(hex: "3AAAC4").opacity(0.5))
                     }
                 }
                 Spacer()
@@ -447,7 +440,7 @@ struct JobRowCard: View {
                     if let t = booking.service_time {
                         Text(t)
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(shiftRunning ? Color(hex: "7ED8EA") : Color.white.opacity(0.25))
+                            .foregroundColor(Color(hex: "7ED8EA"))
                     }
                     if let w = booking.window_count {
                         Text("\(w)w")
@@ -457,19 +450,13 @@ struct JobRowCard: View {
                 }
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(shiftRunning ? Color(hex: "3AAAC4").opacity(0.5) : Color.white.opacity(0.1))
+                    .foregroundColor(Color(hex: "3AAAC4").opacity(0.5))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(Color(hex: shiftRunning ? "0A2A3C" : "071520").opacity(0.7))
+            .background(Color(hex: "0A2A3C").opacity(0.7))
             .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(
-                        shiftRunning ? Color(hex: "3AAAC4").opacity(0.3) : Color.white.opacity(0.06),
-                        lineWidth: 1
-                    )
-            )
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "3AAAC4").opacity(0.3), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

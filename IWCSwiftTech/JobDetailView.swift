@@ -238,6 +238,9 @@ struct JobDetailView: View {
 
     private func startAndNavigate() {
         timerMgr.cancelShiftEnd()
+        if timerMgr.watches.first(where: { $0.id == "shift" })?.isRunning == false {
+            timerMgr.toggle("shift")
+        }
         if timerMgr.watches.first(where: { $0.id == "drive" })?.isRunning == false {
             timerMgr.toggle("drive")
         }
