@@ -5,6 +5,7 @@ struct TechMainView: View {
     @StateObject private var timerMgr = TimerManager()
     @StateObject private var alertsMgr = AlertsManager()
     @State private var selectedTab = 0
+    @State private var homeExpanded = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -16,7 +17,7 @@ struct TechMainView: View {
             // Tab content
             ZStack {
                 switch selectedTab {
-                case 0: DashboardView(timerMgr: timerMgr, alertsMgr: alertsMgr, selectedTab: $selectedTab)
+                case 0: DashboardView(timerMgr: timerMgr, alertsMgr: alertsMgr, selectedTab: $selectedTab, isExpanded: $homeExpanded)
                 case 1: TimeclockView(timerMgr: timerMgr)
                 case 2: AlertsView(alertsMgr: alertsMgr)
                 default: MileageView()
@@ -24,14 +25,20 @@ struct TechMainView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Custom tab bar
-            TechTabBar(selectedTab: $selectedTab, unreadAlerts: alertsMgr.unreadCount)
+            // Tab bar hidden on home screen until expanded
+            if selectedTab != 0 || homeExpanded {
+                TechTabBar(selectedTab: $selectedTab, unreadAlerts: alertsMgr.unreadCount)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .ignoresSafeArea(edges: .bottom)
         .environmentObject(timerMgr)
         .environmentObject(alertsMgr)
         .onAppear { alertsMgr.startPolling() }
         .onDisappear { alertsMgr.stopPolling() }
+        .onChange(of: selectedTab) { tab in
+            if tab != 0 { homeExpanded = false }
+        }
     }
 }
 

@@ -5,6 +5,7 @@ struct DashboardView: View {
     @ObservedObject var timerMgr: TimerManager
     @ObservedObject var alertsMgr: AlertsManager
     @Binding var selectedTab: Int
+    @Binding var isExpanded: Bool
 
     @State private var upcomingJobs: [Booking] = []
     @State private var isLoadingJobs = false
@@ -20,36 +21,12 @@ struct DashboardView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                // Header
+                // Header — always visible
                 header
                     .padding(.top, 60)
                     .padding(.bottom, 24)
 
-                // Windows cleaned tally — appears once first job is closed
-                if timerMgr.windowsCleanedToday > 0 {
-                    let perHr = timerMgr.windowsPerHour(at: timerMgr.tick)
-                    HStack(spacing: 0) {
-                        tallyCell(value: "\(timerMgr.windowsCleanedToday)", label: "TODAY", color: "34D399")
-                        if perHr > 0 {
-                            Rectangle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 1, height: 32)
-                            tallyCell(value: String(format: "%.1f", perHr), label: "PER HR", color: "7ED8EA")
-                        }
-                        Rectangle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 1, height: 32)
-                        tallyCell(value: "\(timerMgr.windowsCleanedThisWeek)", label: "THIS WK", color: "3AAAC4")
-                        Spacer()
-                        Text("🪟").font(.system(size: 22)).padding(.trailing, 16)
-                    }
-                    .padding(.horizontal, 4).padding(.vertical, 14)
-                    .background(Color(hex: "0A1E12").opacity(0.85))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "34D399").opacity(0.25), lineWidth: 1))
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.spring(response: 0.5, dampingFraction: 0.75), value: timerMgr.windowsCleanedToday)
-                }
-
-                // Shift auto-end countdown
+                // Shift auto-end countdown — always visible when active
                 if let countdown = timerMgr.shiftEndCountdown {
                     let mins = Int(countdown) / 60
                     let secs = Int(countdown) % 60
@@ -61,9 +38,7 @@ struct DashboardView: View {
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(Color(hex: "F59E0B").opacity(0.85))
                         Spacer()
-                        Button {
-                            timerMgr.cancelShiftEnd()
-                        } label: {
+                        Button { timerMgr.cancelShiftEnd() } label: {
                             Text("Keep open")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(Color(hex: "F59E0B"))
@@ -76,67 +51,109 @@ struct DashboardView: View {
                     .background(Color(hex: "1A1000").opacity(0.9))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "F59E0B").opacity(0.3), lineWidth: 1))
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, 20).padding(.bottom, 10)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .animation(.spring(response: 0.4, dampingFraction: 0.75), value: timerMgr.shiftEndTime)
                 }
 
-                // Shift control card
+                // Shift control card — always visible
                 shiftCard
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
 
-                // Incoming alert banner
-                if let alert = alertsMgr.incomingAlert {
-                    incomingAlertBanner(alert: alert)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .animation(.spring(response: 0.5, dampingFraction: 0.72), value: alertsMgr.incomingAlert?.id)
-                }
-
-                // Quick nav pills
-                quickNavRow
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
-
-                // Upcoming jobs — shown once clocked in
-                if shiftRunning && !upcomingJobs.isEmpty {
-                    let todayJobs = upcomingJobs.filter { $0.isToday }
-                    let futureJobs = upcomingJobs.filter { !$0.isToday }
-
-                    if !todayJobs.isEmpty {
-                        sectionHeader("TODAY · \(todayJobs.count) JOB\(todayJobs.count == 1 ? "" : "S")")
-                            .padding(.horizontal, 20).padding(.bottom, 10)
-                        VStack(spacing: 8) {
-                            ForEach(todayJobs) { job in
-                                JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
-                            }
+                // Expand/collapse chevron tap area
+                Button {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.78)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color.white.opacity(0.3))
+                        if !isExpanded {
+                            Text("JOBS & MENU")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(Color.white.opacity(0.2))
+                                .tracking(1.5)
                         }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+
+                // Everything below only shows when expanded
+                if isExpanded {
+                    // Incoming alert banner
+                    if let alert = alertsMgr.incomingAlert {
+                        incomingAlertBanner(alert: alert)
+                            .padding(.horizontal, 20).padding(.bottom, 16)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .animation(.spring(response: 0.5, dampingFraction: 0.72), value: alertsMgr.incomingAlert?.id)
+                    }
+
+                    // Windows tally
+                    if timerMgr.windowsCleanedToday > 0 {
+                        let perHr = timerMgr.windowsPerHour(at: timerMgr.tick)
+                        HStack(spacing: 0) {
+                            tallyCell(value: "\(timerMgr.windowsCleanedToday)", label: "TODAY", color: "34D399")
+                            if perHr > 0 {
+                                Rectangle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 1, height: 32)
+                                tallyCell(value: String(format: "%.1f", perHr), label: "PER HR", color: "7ED8EA")
+                            }
+                            Rectangle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 1, height: 32)
+                            tallyCell(value: "\(timerMgr.windowsCleanedThisWeek)", label: "THIS WK", color: "3AAAC4")
+                            Spacer()
+                            Text("🪟").font(.system(size: 22)).padding(.trailing, 16)
+                        }
+                        .padding(.horizontal, 4).padding(.vertical, 14)
+                        .background(Color(hex: "0A1E12").opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "34D399").opacity(0.25), lineWidth: 1))
                         .padding(.horizontal, 20).padding(.bottom, 16)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
-                    if !futureJobs.isEmpty {
-                        sectionHeader("UPCOMING")
-                            .padding(.horizontal, 20).padding(.bottom, 10)
-                        VStack(spacing: 8) {
-                            ForEach(futureJobs) { job in
-                                JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
+                    // Running timers summary
+                    if timerMgr.watches.filter({ $0.isRunning }).count > 1 {
+                        runningTimersSummary
+                            .padding(.horizontal, 20).padding(.bottom, 16)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
+                    // Upcoming jobs
+                    if !upcomingJobs.isEmpty {
+                        let todayJobs = upcomingJobs.filter { $0.isToday }
+                        let futureJobs = upcomingJobs.filter { !$0.isToday }
+
+                        if !todayJobs.isEmpty {
+                            sectionHeader("TODAY · \(todayJobs.count) JOB\(todayJobs.count == 1 ? "" : "S")")
+                                .padding(.horizontal, 20).padding(.bottom, 10)
+                            VStack(spacing: 8) {
+                                ForEach(todayJobs) { job in
+                                    JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
+                                }
                             }
+                            .padding(.horizontal, 20).padding(.bottom, 16)
+                            .transition(.move(edge: .top).combined(with: .opacity))
                         }
-                        .padding(.horizontal, 20).padding(.bottom, 24)
+
+                        if !futureJobs.isEmpty {
+                            sectionHeader("UPCOMING")
+                                .padding(.horizontal, 20).padding(.bottom, 10)
+                            VStack(spacing: 8) {
+                                ForEach(futureJobs) { job in
+                                    JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
+                                }
+                            }
+                            .padding(.horizontal, 20).padding(.bottom, 24)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
                     }
-                }
 
-                // Running timers summary
-                if timerMgr.watches.filter({ $0.isRunning }).count > 1 {
-                    runningTimersSummary
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 24)
+                    Spacer(minLength: 120)
                 }
-
-                Spacer(minLength: 120)
             }
         }
         .task { await loadJobs() }
