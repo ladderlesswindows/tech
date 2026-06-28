@@ -117,40 +117,38 @@ struct JobDetailView: View {
 
     private var jobInfoCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(booking.displayName)
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                    if let addr = booking.address {
-                        Text(addr)
-                            .font(.system(size: 13))
-                            .foregroundColor(Color.white.opacity(0.5))
-                    }
+            // Big date + time hero
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                if let t = booking.service_time {
+                    Text(t)
+                        .font(.system(size: 48, weight: .bold, design: .monospaced))
+                        .foregroundColor(Color(hex: "7ED8EA"))
                 }
                 Spacer()
-                if let t = booking.service_time {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(t)
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(Color(hex: "7ED8EA"))
-                        Text("scheduled")
-                            .font(.system(size: 10))
-                            .foregroundColor(Color.white.opacity(0.3))
-                    }
+                Text(booking.formattedDate)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.5))
+            }
+            .padding(.bottom, 4)
+
+            Divider().background(Color(hex: "3AAAC4").opacity(0.15))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(booking.displayName)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+                if let addr = booking.address {
+                    Text(addr)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.white.opacity(0.5))
                 }
             }
 
             Divider().background(Color(hex: "3AAAC4").opacity(0.15))
 
-            HStack(spacing: 16) {
-                Label("\(booking.window_count ?? 0) windows", systemImage: "window.casement")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color(hex: "7ED8EA"))
-                Label(booking.formattedDate, systemImage: "calendar")
-                    .font(.system(size: 13))
-                    .foregroundColor(Color.white.opacity(0.4))
-            }
+            Label("\(booking.window_count ?? 0) windows", systemImage: "window.casement")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Color(hex: "7ED8EA"))
         }
         .padding(18)
         .background(Color(hex: "0A2030").opacity(0.85))

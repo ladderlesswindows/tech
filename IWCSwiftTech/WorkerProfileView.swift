@@ -213,6 +213,28 @@ struct WorkerProfileView: View {
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "34D399").opacity(0.15), lineWidth: 1))
                     .padding(.horizontal, 20)
 
+                    // Clocks & Miles — raw totals
+                    sectionLabel("CLOCKS & MILES")
+                    HStack(spacing: 0) {
+                        let shiftElapsed = shiftWatch?.currentElapsed(at: timerMgr.tick) ?? 0
+                        let driveElapsed = timerMgr.watches
+                            .filter { $0.id == "drive" || $0.id == "between" }
+                            .reduce(0.0) { $0 + $1.currentElapsed(at: timerMgr.tick) }
+                        let cleanElapsed = timerMgr.watches
+                            .filter { $0.id == "window" || $0.id == "interior" || $0.id == "screen" }
+                            .reduce(0.0) { $0 + $1.currentElapsed(at: timerMgr.tick) }
+                        profileStat(value: formatHours(shiftElapsed), label: "SHIFT", color: "7ED8EA", icon: "clock.fill")
+                        divider()
+                        profileStat(value: formatHours(driveElapsed), label: "DRIVE", color: "F59E0B", icon: "car.fill")
+                        divider()
+                        profileStat(value: formatHours(cleanElapsed), label: "ON SITE", color: "34D399", icon: "house.fill")
+                    }
+                    .padding(.vertical, 18)
+                    .background(Color(hex: "0A2030").opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "3AAAC4").opacity(0.15), lineWidth: 1))
+                    .padding(.horizontal, 20)
+
                     // Active timers
                     let running = timerMgr.watches.filter { $0.isRunning }
                     if !running.isEmpty {
