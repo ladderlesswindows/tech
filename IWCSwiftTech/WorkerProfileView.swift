@@ -8,6 +8,9 @@ struct WorkerProfileView: View {
 
     @State private var pickerItem: PhotosPickerItem? = nil
     @State private var avatarImage: UIImage? = nil
+    @State private var paymentHandle: String = ""
+    @State private var editingPayment = false
+    @FocusState private var paymentFocused: Bool
 
     private var shiftWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "shift" }) }
     private var driveWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "drive" }) }
@@ -165,6 +168,52 @@ struct WorkerProfileView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "3AAAC4").opacity(0.15), lineWidth: 1))
                     .padding(.horizontal, 20)
+
+                    // Payment account
+                    sectionLabel("PAYMENT")
+                    HStack(spacing: 12) {
+                        Image(systemName: "dollarsign.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(Color(hex: "34D399").opacity(0.7))
+                        if editingPayment {
+                            TextField("Venmo @handle or PayPal email", text: $paymentHandle)
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .focused($paymentFocused)
+                        } else {
+                            Text(paymentHandle.isEmpty ? "Add Venmo or PayPal" : paymentHandle)
+                                .font(.system(size: 14))
+                                .foregroundColor(paymentHandle.isEmpty ? Color.white.opacity(0.25) : .white)
+                        }
+                        Spacer()
+                        Button {
+                            if editingPayment {
+                                let key = "payment_\(auth.currentEmployee?.id ?? "unknown")"
+                                UserDefaults.standard.set(paymentHandle, forKey: key)
+                                paymentFocused = false
+                            }
+                            editingPayment.toggle()
+                            if editingPayment { paymentFocused = true }
+                        } label: {
+                            Text(editingPayment ? "Save" : "Edit")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Color(hex: "7ED8EA"))
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .background(Color(hex: "0A3D5C").opacity(0.8))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .background(Color(hex: "0A2030").opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "34D399").opacity(0.15), lineWidth: 1))
+                    .padding(.horizontal, 20)
+                    .onAppear {
+                        let key = "payment_\(auth.currentEmployee?.id ?? "unknown")"
+                        paymentHandle = UserDefaults.standard.string(forKey: key) ?? ""
+                    }
 
                     // Active timers
                     let running = timerMgr.watches.filter { $0.isRunning }
