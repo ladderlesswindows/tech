@@ -7,7 +7,7 @@ struct TechJobView: View {
     @EnvironmentObject private var auth: AuthManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var safetyStage: SafetyStage = .step1
+    @State private var safetyStage: SafetyStage = .clientCheck
     @State private var safetyCleared = false
     @State private var step1Selections: Set<String> = []
     @State private var step2Checks: Set<String> = []
@@ -30,7 +30,7 @@ struct TechJobView: View {
     var bookedWindowCount: Int { booking.window_count ?? 0 }
     var windowDelta: Int { documentedWindowCount - bookedWindowCount }
 
-    enum SafetyStage { case step1, step2 }
+    enum SafetyStage { case clientCheck, step1, step2 }
 
     private var driveWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "drive" }) }
     private var onsiteWatch: StopwatchState? { timerMgr.watches.first(where: { $0.id == "onsite" }) }
@@ -56,6 +56,15 @@ struct TechJobView: View {
                     step1Selections: $step1Selections,
                     step2Checks: $step2Checks,
                     booking: booking,
+                    onClientCheck: { _ in
+                        // Drive timer pauses, on-site starts
+                        if timerMgr.watches.first(where: { $0.id == "drive" })?.isRunning == true {
+                            timerMgr.toggle("drive")
+                        }
+                        if timerMgr.watches.first(where: { $0.id == "onsite" })?.isRunning == false {
+                            timerMgr.toggle("onsite")
+                        }
+                    },
                     onClear: {
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                             showSafety = false
@@ -88,16 +97,23 @@ struct TechJobView: View {
             titleVisibility: .visible
         ) {
             Button("Close Job + Stop Timers", role: .destructive) {
-                if onsiteWatch?.isRunning == true { timerMgr.toggle("onsite") }
-                if windowWatch?.isRunning == true { timerMgr.toggle("window") }
-                timerMgr.windowsCleanedToday += documentedWindowCount
+                for id in ["drive", "onsite", "window", "interior", "screen"] {
+                    if timerMgr.watches.first(where: { $0.id == id })?.isRunning == true {
+                        timerMgr.toggle(id)
+                    }
+                }
+                timerMgr.addWindowsCleaned(documentedWindowCount)
+                timerMgr.scheduleShiftEnd()
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                     jobClosed = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    dismiss()
                 }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will stop the On-Site and Window timers and mark the job complete.")
+            Text("All timers stop now. Shift clock will auto-close in 5 minutes unless you start another job.")
         }
         .onDisappear { checkInPollingTask?.cancel() }
     }
@@ -170,16 +186,6 @@ struct TechJobView: View {
 
                 // Timer controls
                 timerSection(
-                    watch: driveWatch,
-                    id: "drive",
-                    label: "Drive Timer",
-                    emoji: "🚗",
-                    subtitle: "Start when leaving for this job"
-                )
-                .padding(.horizontal, 20)
-                .padding(.bottom, 12)
-
-                timerSection(
                     watch: onsiteWatch,
                     id: "onsite",
                     label: "On-Site Timer",
@@ -198,19 +204,8 @@ struct TechJobView: View {
                         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: onsiteRunning)
                 }
 
-                // Window timer only unlocked after check-in
+                // Wall documentation unlocked after check-in
                 if checkInState == .confirmed || checkInState == .exception {
-                    timerSection(
-                        watch: windowWatch,
-                        id: "window",
-                        label: "Window Timer",
-                        emoji: "🪟",
-                        subtitle: "Start when cleaning begins"
-                    )
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-
                     // Pre-documentation: Begin Wall Documentation
                     if documentedWalls.isEmpty {
                         Button { showWalls = true } label: {
@@ -277,21 +272,18 @@ struct TechJobView: View {
                         .disabled(jobClosed)
 
                         if jobClosed {
-                            HStack(spacing: 12) {
-                                navigateButton
-                                Button { dismiss() } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "house.fill").font(.system(size: 15))
-                                        Text("Back Home").font(.system(size: 15, weight: .bold))
-                                    }
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(Color(hex: "0A1A28").opacity(0.9))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.12), lineWidth: 1))
-                                }
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(Color(hex: "34D399"))
+                                Text("Job closed — returning home…")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Color(hex: "34D399").opacity(0.8))
                             }
+                            .padding(.horizontal, 18).padding(.vertical, 14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: "0A1E12").opacity(0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     } // end VStack
@@ -387,6 +379,10 @@ struct TechJobView: View {
                     )
                     .clipShape(Capsule())
             }
+            if timerMgr.windowsCleanedToday > 0 || timerMgr.windowsCleanedThisWeek > 0 {
+                Divider().background(Color(hex: "3AAAC4").opacity(0.1))
+                paceSummaryLine
+            }
         }
         .padding(18)
         .background(Color(hex: "0A2030").opacity(0.85))
@@ -397,6 +393,22 @@ struct TechJobView: View {
         ))
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: documentedWindowCount)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: jobClosed)
+    }
+
+    private var paceSummaryLine: some View {
+        let perHr = timerMgr.windowsPerHour(at: timerMgr.tick)
+        return HStack(spacing: 4) {
+            Text("\(timerMgr.windowsCleanedToday) today")
+            if perHr > 0 {
+                Text("·").opacity(0.3)
+                Text(String(format: "%.1f/hr", perHr))
+            }
+            Text("·").opacity(0.3)
+            Text("\(timerMgr.windowsCleanedThisWeek) this wk")
+            Spacer()
+        }
+        .font(.system(size: 11))
+        .foregroundColor(Color.white.opacity(0.35))
     }
 
     private func windowStatCell(value: String, label: String, color: String) -> some View {
@@ -776,6 +788,7 @@ struct SafetyOverlay: View {
     @Binding var step1Selections: Set<String>
     @Binding var step2Checks: Set<String>
     let booking: Booking
+    let onClientCheck: (Bool) -> Void
     let onClear: () -> Void
     let onDismiss: () -> Void
 
@@ -817,7 +830,7 @@ struct SafetyOverlay: View {
                         .foregroundColor(Color(hex: "3AAAC4").opacity(0.6))
                     Spacer()
                     // stage indicator
-                    Text(stage == .step1 ? "1 of 2" : "2 of 2")
+                    Text(stage == .clientCheck ? "1 of 3" : stage == .step1 ? "2 of 3" : "3 of 3")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Color.white.opacity(0.3))
                 }
@@ -836,7 +849,13 @@ struct SafetyOverlay: View {
                     .lineLimit(1)
                     .padding(.bottom, 32)
 
-                if stage == .step1 {
+                if stage == .clientCheck {
+                    clientCheckView
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
+                } else if stage == .step1 {
                     step1View
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -852,6 +871,88 @@ struct SafetyOverlay: View {
 
                 Spacer()
             }
+        }
+    }
+
+    // MARK: Step 0 — Client check
+
+    private var clientCheckView: some View {
+        VStack(spacing: 0) {
+            Text("Is the client home?")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.bottom, 8)
+            Text("Your answer is logged for this job.")
+                .font(.system(size: 12))
+                .foregroundColor(Color.white.opacity(0.3))
+                .padding(.bottom, 36)
+
+            VStack(spacing: 12) {
+                Button {
+                    onClientCheck(true)
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step1 }
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 48, height: 48)
+                            Image(systemName: "person.fill.checkmark")
+                                .font(.system(size: 20))
+                                .foregroundColor(Color(hex: "34D399"))
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Client Here")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Someone is home to greet you")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.white.opacity(0.4))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color(hex: "34D399").opacity(0.5))
+                    }
+                    .padding(.horizontal, 18).padding(.vertical, 16)
+                    .background(Color(hex: "0A2A1E").opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "34D399").opacity(0.3), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    onClientCheck(false)
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step1 }
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle().fill(Color(hex: "F59E0B").opacity(0.12)).frame(width: 48, height: 48)
+                            Image(systemName: "person.fill.xmark")
+                                .font(.system(size: 20))
+                                .foregroundColor(Color(hex: "F59E0B"))
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Client Not Home")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("No one answered — proceeding solo")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.white.opacity(0.4))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color(hex: "F59E0B").opacity(0.5))
+                    }
+                    .padding(.horizontal, 18).padding(.vertical, 16)
+                    .background(Color(hex: "1A1200").opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "F59E0B").opacity(0.25), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+
+            Spacer(minLength: 48)
         }
     }
 

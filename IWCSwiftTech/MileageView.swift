@@ -3,7 +3,6 @@ import SwiftUI
 struct MileageView: View {
     @State private var tripEntries: [TripEntry] = []
     @State private var showAddSheet = false
-    @State private var totalMiles: Double { tripEntries.reduce(0) { $0 + $1.miles } }
 
     var body: some View {
         VStack(spacing: 0) {

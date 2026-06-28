@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct ScheduleView: View {
+    @EnvironmentObject private var timerMgr: TimerManager
     @State private var bookings: [Booking] = []
     @State private var isLoading = false
     @State private var errorMsg: String? = nil
+    @State private var selectedBooking: Booking? = nil
 
     private var grouped: [(key: String, values: [Booking])] {
         let sorted = bookings.sorted { ($0.service_date ?? "") < ($1.service_date ?? "") }
@@ -63,7 +65,10 @@ struct ScheduleView: View {
 
                                 VStack(spacing: 8) {
                                     ForEach(group.values) { booking in
-                                        ScheduleJobCard(booking: booking)
+                                        Button { selectedBooking = booking } label: {
+                                            ScheduleJobCard(booking: booking)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                             }
@@ -76,6 +81,9 @@ struct ScheduleView: View {
             }
         }
         .task { await loadSchedule() }
+        .fullScreenCover(item: $selectedBooking) { booking in
+            JobDetailView(booking: booking, timerMgr: timerMgr)
+        }
     }
 
     private func loadSchedule() async {

@@ -27,7 +27,7 @@ class AuthManager: ObservableObject {
     @Published var loadingEmployees = false
 
     var apiPassword: String { UserDefaults.standard.string(forKey: "worker_password") ?? "" }
-    var isConfigured: Bool { !apiPassword.isEmpty }
+    @Published var isConfigured: Bool = !(UserDefaults.standard.string(forKey: "worker_password") ?? "").isEmpty
 
     private init() {}
 
@@ -60,5 +60,6 @@ class AuthManager: ObservableObject {
 
     func saveAPIPassword(_ pwd: String) {
         UserDefaults.standard.set(pwd, forKey: "worker_password")
+        isConfigured = !pwd.isEmpty
     }
 }

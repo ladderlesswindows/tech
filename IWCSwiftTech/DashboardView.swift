@@ -9,6 +9,10 @@ struct DashboardView: View {
     @State private var todayJobs: [Booking] = []
     @State private var isLoadingJobs = false
     @State private var activeJob: Booking? = nil
+    @State private var showProfile = false
+    @State private var avatarImage: UIImage? = nil
+
+    private var avatarKey: String { "avatar_\(auth.currentEmployee?.id ?? "unknown")" }
 
     private var shiftState: StopwatchState? { timerMgr.watches.first(where: { $0.id == "shift" }) }
     private var shiftRunning: Bool { shiftState?.isRunning ?? false }
@@ -23,23 +27,19 @@ struct DashboardView: View {
 
                 // Windows cleaned tally — appears once first job is closed
                 if timerMgr.windowsCleanedToday > 0 {
-                    HStack(spacing: 10) {
-                        Text("🪟")
-                            .font(.system(size: 20))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(timerMgr.windowsCleanedToday) windows cleaned today")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("running total across closed jobs")
-                                .font(.system(size: 11))
-                                .foregroundColor(Color.white.opacity(0.35))
+                    let perHr = timerMgr.windowsPerHour(at: timerMgr.tick)
+                    HStack(spacing: 0) {
+                        tallyCell(value: "\(timerMgr.windowsCleanedToday)", label: "TODAY", color: "34D399")
+                        if perHr > 0 {
+                            Rectangle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 1, height: 32)
+                            tallyCell(value: String(format: "%.1f", perHr), label: "PER HR", color: "7ED8EA")
                         }
+                        Rectangle().fill(Color(hex: "34D399").opacity(0.15)).frame(width: 1, height: 32)
+                        tallyCell(value: "\(timerMgr.windowsCleanedThisWeek)", label: "THIS WK", color: "3AAAC4")
                         Spacer()
-                        Text("\(timerMgr.windowsCleanedToday)")
-                            .font(.system(size: 32, weight: .light, design: .monospaced))
-                            .foregroundColor(Color(hex: "34D399"))
+                        Text("🪟").font(.system(size: 22)).padding(.trailing, 16)
                     }
-                    .padding(.horizontal, 18).padding(.vertical, 14)
+                    .padding(.horizontal, 4).padding(.vertical, 14)
                     .background(Color(hex: "0A1E12").opacity(0.85))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "34D399").opacity(0.25), lineWidth: 1))
@@ -47,6 +47,39 @@ struct DashboardView: View {
                     .padding(.bottom, 16)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .animation(.spring(response: 0.5, dampingFraction: 0.75), value: timerMgr.windowsCleanedToday)
+                }
+
+                // Shift auto-end countdown
+                if let countdown = timerMgr.shiftEndCountdown {
+                    let mins = Int(countdown) / 60
+                    let secs = Int(countdown) % 60
+                    HStack(spacing: 10) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hex: "F59E0B"))
+                        Text("Shift ends in \(mins):\(String(format: "%02d", secs)) — start another job to continue")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(hex: "F59E0B").opacity(0.85))
+                        Spacer()
+                        Button {
+                            timerMgr.cancelShiftEnd()
+                        } label: {
+                            Text("Keep open")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(Color(hex: "F59E0B"))
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(Color(hex: "F59E0B").opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 11)
+                    .background(Color(hex: "1A1000").opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "F59E0B").opacity(0.3), lineWidth: 1))
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.75), value: timerMgr.shiftEndTime)
                 }
 
                 // Shift control card
@@ -97,7 +130,7 @@ struct DashboardView: View {
         }
         .task { await loadJobs() }
         .fullScreenCover(item: $activeJob) { job in
-            TechJobView(booking: job, timerMgr: timerMgr)
+            JobDetailView(booking: job, timerMgr: timerMgr)
         }
     }
 
@@ -105,31 +138,55 @@ struct DashboardView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
-            // Avatar
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "0A3D5C").opacity(0.8))
-                    .frame(width: 52, height: 52)
-                    .overlay(Circle().stroke(Color(hex: "3AAAC4").opacity(0.4), lineWidth: 1.5))
-                Text(String(auth.currentEmployee?.name.prefix(1) ?? "?"))
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(Color(hex: "7ED8EA"))
+            Button { showProfile = true } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "0A3D5C").opacity(0.8))
+                        .frame(width: 52, height: 52)
+                        .overlay(Circle().stroke(Color(hex: "3AAAC4").opacity(0.4), lineWidth: 1.5))
+                    if let img = avatarImage {
+                        Image(uiImage: img)
+                            .resizable().scaledToFill()
+                            .frame(width: 52, height: 52)
+                            .clipShape(Circle())
+                    } else {
+                        Text(String(auth.currentEmployee?.name.prefix(1) ?? "?"))
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(Color(hex: "7ED8EA"))
+                    }
+                }
             }
+            .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(auth.currentEmployee?.name ?? "Technician")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                Text(shiftRunning ? "Shift active" : "Off clock")
-                    .font(.system(size: 12))
-                    .foregroundColor(shiftRunning ? Color(hex: "34D399") : Color.white.opacity(0.4))
+            Button { showProfile = true } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(auth.currentEmployee?.name ?? "Technician")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(shiftRunning ? "Shift active" : "Off clock")
+                        .font(.system(size: 12))
+                        .foregroundColor(shiftRunning ? Color(hex: "34D399") : Color.white.opacity(0.4))
+                }
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
             SoundToggle()
         }
         .padding(.horizontal, 20)
+        .sheet(isPresented: $showProfile, onDismiss: {
+            if let data = UserDefaults.standard.data(forKey: avatarKey) {
+                avatarImage = UIImage(data: data)
+            }
+        }) {
+            WorkerProfileView(timerMgr: timerMgr)
+        }
+        .onAppear {
+            if let data = UserDefaults.standard.data(forKey: avatarKey) {
+                avatarImage = UIImage(data: data)
+            }
+        }
     }
 
     // MARK: - Shift Card
@@ -140,14 +197,14 @@ struct DashboardView: View {
 
         return ZStack {
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color(hex: shiftRunning ? "0A3D5C" : "071520").opacity(0.85))
+                .fill(Color.clear)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
                         .stroke(
                             LinearGradient(
                                 colors: shiftRunning
-                                    ? [Color(hex: "34D399").opacity(0.7), Color(hex: "3AAAC4").opacity(0.3)]
-                                    : [Color.white.opacity(0.08), Color.clear],
+                                    ? [Color(hex: "34D399").opacity(0.6), Color(hex: "3AAAC4").opacity(0.25)]
+                                    : [Color.white.opacity(0.12), Color.clear],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
@@ -293,6 +350,19 @@ struct DashboardView: View {
         }
     }
 
+    private func tallyCell(value: String, label: String, color: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 20, weight: .bold, design: .monospaced))
+                .foregroundColor(Color(hex: color))
+            Text(label)
+                .font(.system(size: 8, weight: .black))
+                .tracking(1.5)
+                .foregroundColor(Color.white.opacity(0.3))
+        }
+        .frame(minWidth: 72)
+    }
+
     private func sectionHeader(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 9, weight: .black))
@@ -324,8 +394,9 @@ struct JobRowCard: View {
                     Circle()
                         .fill(Color(hex: "3AAAC4").opacity(shiftRunning ? 0.25 : 0.1))
                         .frame(width: 38, height: 38)
-                    Text(shiftRunning ? "🪟" : "🔒")
-                        .font(.system(size: 18))
+                    Image(systemName: shiftRunning ? "window.casement" : "house.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(shiftRunning ? Color(hex: "7ED8EA") : Color.white.opacity(0.25))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(booking.displayName)
