@@ -18,8 +18,7 @@ struct TechMainView: View {
                 switch selectedTab {
                 case 0: DashboardView(timerMgr: timerMgr, alertsMgr: alertsMgr, selectedTab: $selectedTab)
                 case 1: TimeclockView(timerMgr: timerMgr)
-                case 2: ScheduleView()
-                case 3: AlertsView(alertsMgr: alertsMgr)
+                case 2: AlertsView(alertsMgr: alertsMgr)
                 default: MileageView()
                 }
             }
@@ -43,7 +42,6 @@ struct TechTabBar: View {
     private let tabs: [(icon: String, label: String)] = [
         ("house.fill", "Home"),
         ("timer", "Clocks"),
-        ("calendar", "Jobs"),
         ("bell.fill", "Alerts"),
         ("map.fill", "Miles"),
     ]
@@ -63,7 +61,7 @@ struct TechTabBar: View {
                                     ? Color(hex: "7ED8EA")
                                     : Color.white.opacity(0.32)
                                 )
-                            if i == 3 && unreadAlerts > 0 {
+                            if i == 2 && unreadAlerts > 0 {
                                 Text("\(min(unreadAlerts, 9))")
                                     .font(.system(size: 9, weight: .bold))
                                     .foregroundColor(.white)

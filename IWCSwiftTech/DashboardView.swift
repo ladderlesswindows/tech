@@ -6,7 +6,7 @@ struct DashboardView: View {
     @ObservedObject var alertsMgr: AlertsManager
     @Binding var selectedTab: Int
 
-    @State private var todayJobs: [Booking] = []
+    @State private var upcomingJobs: [Booking] = []
     @State private var isLoadingJobs = false
     @State private var activeJob: Booking? = nil
     @State private var showProfile = false
@@ -101,21 +101,32 @@ struct DashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
 
-                // Today's jobs
-                if !todayJobs.isEmpty {
-                    sectionHeader("TODAY · \(todayJobs.count) JOB\(todayJobs.count == 1 ? "" : "S")")
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 10)
+                // Upcoming jobs — shown once clocked in
+                if shiftRunning && !upcomingJobs.isEmpty {
+                    let todayJobs = upcomingJobs.filter { $0.isToday }
+                    let futureJobs = upcomingJobs.filter { !$0.isToday }
 
-                    VStack(spacing: 8) {
-                        ForEach(todayJobs) { job in
-                            JobRowCard(booking: job, shiftRunning: shiftRunning) {
-                                activeJob = job
+                    if !todayJobs.isEmpty {
+                        sectionHeader("TODAY · \(todayJobs.count) JOB\(todayJobs.count == 1 ? "" : "S")")
+                            .padding(.horizontal, 20).padding(.bottom, 10)
+                        VStack(spacing: 8) {
+                            ForEach(todayJobs) { job in
+                                JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
                             }
                         }
+                        .padding(.horizontal, 20).padding(.bottom, 16)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
+
+                    if !futureJobs.isEmpty {
+                        sectionHeader("UPCOMING")
+                            .padding(.horizontal, 20).padding(.bottom, 10)
+                        VStack(spacing: 8) {
+                            ForEach(futureJobs) { job in
+                                JobRowCard(booking: job, shiftRunning: shiftRunning) { activeJob = job }
+                            }
+                        }
+                        .padding(.horizontal, 20).padding(.bottom, 24)
+                    }
                 }
 
                 // Running timers summary
@@ -374,7 +385,7 @@ struct DashboardView: View {
         guard let pw = UserDefaults.standard.string(forKey: "worker_password") else { return }
         isLoadingJobs = true
         if let jobs = try? await APIClient.fetchSchedule(password: pw) {
-            todayJobs = jobs.filter { $0.isToday }
+            upcomingJobs = jobs
         }
         isLoadingJobs = false
     }
