@@ -22,7 +22,7 @@ struct DashboardView: View {
         VStack(spacing: 0) {
             // Header — pinned to top
             header
-                .padding(.top, 60)
+                .padding(.top, 8)
                 .padding(.bottom, 16)
 
             // Middle — beach shows through when collapsed, jobs scroll when expanded
@@ -136,7 +136,7 @@ struct DashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
 
-                // Expand/collapse button
+                // Expand/collapse button — bottom padding clears the tab bar
                 Button {
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.78)) {
                         isExpanded.toggle()
@@ -166,6 +166,7 @@ struct DashboardView: View {
                     .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
+                .padding(.bottom, isExpanded ? 90 : 0)
             }
         }
         .task { await loadJobs() }
