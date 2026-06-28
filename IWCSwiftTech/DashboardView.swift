@@ -131,10 +131,12 @@ struct DashboardView: View {
                     .animation(.spring(response: 0.4, dampingFraction: 0.75), value: timerMgr.shiftEndTime)
                 }
 
-                // Shift card
+                // Shift card — dims after clock-in so tabs stay visually dominant
                 shiftCard
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
+                    .opacity(shiftRunning ? 0.35 : 1.0)
+                    .animation(.easeInOut(duration: 0.6), value: shiftRunning)
 
                 // Expand/collapse button — bottom padding clears the tab bar
                 Button {
@@ -412,9 +414,8 @@ struct DashboardView: View {
     }
 
     private func loadJobs() async {
-        guard let pw = UserDefaults.standard.string(forKey: "worker_password") else { return }
         isLoadingJobs = true
-        if let jobs = try? await APIClient.fetchSchedule(password: pw) {
+        if let jobs = try? await APIClient.fetchSchedule(password: auth.apiPassword) {
             upcomingJobs = jobs
         }
         isLoadingJobs = false

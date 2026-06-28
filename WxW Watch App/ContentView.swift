@@ -25,6 +25,9 @@ class WxWSession: NSObject, ObservableObject, WCSessionDelegate {
         WCSession.default.delegate = self
         WCSession.default.activate()
         startLocalTimer()
+        // Pick up any state that was sent while the watch app wasn't running
+        let ctx = WCSession.default.receivedApplicationContext
+        if !ctx.isEmpty { apply(ctx) }
     }
 
     private func startLocalTimer() {
@@ -37,6 +40,14 @@ class WxWSession: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        apply(message)
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        apply(applicationContext)
+    }
+
+    private func apply(_ message: [String: Any]) {
         DispatchQueue.main.async {
             let active = message["active"] as? Bool ?? false
             self.isActive = active

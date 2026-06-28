@@ -22,7 +22,6 @@ struct LoginView: View {
                 Spacer()
 
                 Image("icon")
-                    .padding(.top, 44)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 72, height: 72)
@@ -30,6 +29,7 @@ struct LoginView: View {
                     .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.15), lineWidth: 1))
                     .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
                     .padding(.bottom, 28)
+                    .padding(.top, 44)
 
                 Text("SIMPLE WINDOW CLEANING")
                     .font(.system(size: 10, weight: .semibold))

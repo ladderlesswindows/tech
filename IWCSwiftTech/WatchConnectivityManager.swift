@@ -16,20 +16,24 @@ class WatchConnectivityManager: NSObject, WCSessionDelegate {
     }
 
     func sendWallState(wall: String, window: Int, total: Int, elapsed: TimeInterval, paused: Bool, active: Bool) {
-        guard WCSession.default.isReachable else { return }
-        WCSession.default.sendMessage([
-            "wall": wall,
-            "window": window,
-            "total": total,
-            "elapsed": elapsed,
-            "paused": paused,
-            "active": active
-        ], replyHandler: nil, errorHandler: nil)
+        let payload: [String: Any] = [
+            "wall": wall, "window": window, "total": total,
+            "elapsed": elapsed, "paused": paused, "active": active
+        ]
+        // updateApplicationContext delivers even if watch app isn't open yet
+        try? WCSession.default.updateApplicationContext(payload)
+        // sendMessage delivers immediately if watch app is already running
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        }
     }
 
     func sendIdle() {
-        guard WCSession.default.isReachable else { return }
-        WCSession.default.sendMessage(["active": false], replyHandler: nil, errorHandler: nil)
+        let payload: [String: Any] = ["active": false]
+        try? WCSession.default.updateApplicationContext(payload)
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        }
     }
 
     // Watch → Phone: action buttons

@@ -14,11 +14,15 @@ struct TechMainView: View {
             VideoBackground(player: VideoPlayerController.shared.player)
                 .ignoresSafeArea()
                 .overlay(
-                    Color(hex: "04101C")
-                        .opacity(selectedTab == 0 && !homeExpanded ? 0.0 : 0.72)
-                        .ignoresSafeArea()
-                        .animation(.easeInOut(duration: 0.4), value: homeExpanded)
-                        .animation(.easeInOut(duration: 0.25), value: selectedTab)
+                    // Overlay stops 230pt from bottom so shift card + tab bar show full beach
+                    VStack(spacing: 0) {
+                        Color(hex: "04101C")
+                            .opacity(selectedTab == 0 && !homeExpanded ? 0.0 : 0.72)
+                            .animation(.easeInOut(duration: 0.4), value: homeExpanded)
+                            .animation(.easeInOut(duration: 0.25), value: selectedTab)
+                        Color.clear.frame(height: 230)
+                    }
+                    .ignoresSafeArea()
                 )
 
             // Tab content
@@ -48,8 +52,7 @@ struct TechMainView: View {
             if tab == 3 {
                 selectedTab = 0
                 Task {
-                    guard let pw = UserDefaults.standard.string(forKey: "worker_password") else { return }
-                    if let jobs = try? await APIClient.fetchSchedule(password: pw) {
+                    if let jobs = try? await APIClient.fetchSchedule(password: auth.apiPassword) {
                         nextGig = jobs.first
                     }
                 }
@@ -80,8 +83,9 @@ struct TechTabBar: View {
         } label: {
             ZStack {
                 Image(systemName: icon)
-                    .font(.system(size: 22, weight: selectedTab == index ? .bold : .regular))
-                    .foregroundColor(selectedTab == index ? Color(hex: "7ED8EA") : Color.white.opacity(0.32))
+                    .font(.system(size: 22, weight: selectedTab == index ? .bold : .semibold))
+                    .foregroundColor(selectedTab == index ? Color(hex: "7ED8EA") : Color.white.opacity(0.75))
+                    .shadow(color: .black.opacity(0.9), radius: 4, x: 0, y: 1)
                 if badge > 0 {
                     Text("\(min(badge, 9))")
                         .font(.system(size: 9, weight: .bold))
@@ -102,9 +106,10 @@ struct TechTabBar: View {
         Button {
             withAnimation(.easeInOut(duration: 0.18)) { selectedTab = 3 }
         } label: {
-            Image(systemName: "van.fill")
-                .font(.system(size: 22, weight: .regular))
-                .foregroundColor(Color(hex: "34D399").opacity(0.85))
+            Image(systemName: "car.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(Color(hex: "34D399"))
+                .shadow(color: Color(hex: "34D399").opacity(0.6), radius: 6, x: 0, y: 0)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .padding(.bottom, 20)
