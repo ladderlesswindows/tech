@@ -12,7 +12,13 @@ struct TechMainView: View {
             // Persistent beach video behind all tabs
             VideoBackground(player: VideoPlayerController.shared.player)
                 .ignoresSafeArea()
-                .overlay(Color(hex: "04101C").opacity(0.72).ignoresSafeArea())
+                .overlay(
+                    Color(hex: "04101C")
+                        .opacity(selectedTab == 0 && !homeExpanded ? 0.0 : 0.72)
+                        .ignoresSafeArea()
+                        .animation(.easeInOut(duration: 0.4), value: homeExpanded)
+                        .animation(.easeInOut(duration: 0.25), value: selectedTab)
+                )
 
             // Tab content
             ZStack {
