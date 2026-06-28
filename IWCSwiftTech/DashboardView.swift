@@ -68,10 +68,19 @@ struct DashboardView: View {
                     }
                 } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(Color.white.opacity(0.3))
-                        if !isExpanded {
+                        if isExpanded {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color.white.opacity(0.3))
+                        } else {
+                            HStack(spacing: 6) {
+                                Text("$")
+                                    .font(.system(size: 26, weight: .bold))
+                                    .foregroundColor(Color(hex: "34D399"))
+                                Text("₿")
+                                    .font(.system(size: 26, weight: .bold))
+                                    .foregroundColor(Color(hex: "F59E0B"))
+                            }
                             Text("JOBS & MENU")
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(Color.white.opacity(0.2))
