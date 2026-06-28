@@ -22,6 +22,7 @@ struct LoginView: View {
                 Spacer()
 
                 Image("icon")
+                    .padding(.top, 44)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 72, height: 72)
@@ -90,11 +91,6 @@ struct LoginView: View {
                     .padding(.bottom, 40)
 
                 Spacer()
-
-                Text("Simple Window Cleaning · Santa Cruz, CA")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.1))
-                    .padding(.bottom, 28)
             }
             .padding(.horizontal, 40)
         }
