@@ -508,7 +508,7 @@ struct TechJobView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(Color(hex: running ? "0C2A3E" : "071520").opacity(0.85))
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14).stroke(
@@ -921,7 +921,7 @@ struct SafetyOverlay: View {
 
                 Button {
                     onClientCheck(false)
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step1 }
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { stage = .step2 }
                 } label: {
                     HStack(spacing: 16) {
                         ZStack {
